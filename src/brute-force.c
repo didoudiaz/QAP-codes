@@ -197,6 +197,7 @@ Next_Permutation(int *t, int n)
 int
 Solve(QAPInfo *qi, int target_cost, QAPVector best_sol)
 {
+  int verbose = Get_Verbose_Level();
   int i;
 
   n = qi->size;
@@ -222,22 +223,26 @@ Solve(QAPInfo *qi, int target_cost, QAPVector best_sol)
 #endif
 
   int best_cost = 1 << 30;
-  long long no_perm = 0;
+  int iter_no = 0;
 
   do
     {
-      no_perm++;
+      iter_no++;
 #if SPEED == 0
       cost = Cost_Of_Permutation();
 #endif
-      if (cost <= best_cost)
+      if (cost < best_cost)
 	{
 	  for(i = 0; i < n; i++)
 	    best_sol[i] = PV(i);
 
 	  best_cost = cost;
-	  printf("Solution of value: %d found at permut. %lld\n", cost, no_perm);
-	  QAP_Display_Vector(best_sol, n);
+	  if (verbose > 0)
+	    {
+	      printf("iter:%9d  cost: %s\n", iter_no, Format_Cost_And_Gap(cost, target_cost));
+	      if (verbose > 1)
+		QAP_Display_Vector(best_sol, n);
+	    }
 	}
       if (cost <= target_cost || Is_Interrupted())
 	break;

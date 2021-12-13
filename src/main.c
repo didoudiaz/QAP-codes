@@ -67,7 +67,7 @@ main(int argc, char *argv[])
   Register_Option("-i", OPT_NON, "",           "read initial configuration", &read_initial);
   Register_Option("-b", OPT_INT, "N_EXECS",    "execute N_EXECS times",  &n_execs);
   Register_Option("-P", OPT_DBL, "PROB_REUSE", "probability to reuse curr configuration for next execution", &prob_reuse);
-  Register_Option("-T", OPT_INT, "TARGET",     "set target", &target_cost);
+  Register_Option("-T", OPT_INT, "TARGET",     "set target (default: stop when the OPT or BKS is reached)", &target_cost);
   Register_Option("-v", OPT_INT, "LEVEL",      "set verbosity level",  &verbose);
 
   Init_Main();
