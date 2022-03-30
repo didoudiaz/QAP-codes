@@ -1,7 +1,7 @@
 /*
  *  Extended Extremal Optimization
  *
- *  Copyright (C) 2015 Daniel Diaz
+ *  Copyright (C) 2015-2022 Daniel Diaz
  *
  *  eo-pdf.c: Probability Distribution Function (PDF) management
  */
@@ -763,11 +763,8 @@ PDF_Gener_GNUplot(PDF *p)
 #endif
   fclose(out);
 
-  if (!p->show_gplot)
-    return;
-
   sprintf(buff, "gnuplot %s.gplot", p->gplot_prefix);
-  if (system(buff) == 0)
+  if (system(buff) == 0 && p->show_gplot)
     {
 #if defined(__APPLE__)
       sprintf(buff, "open %s.pdf", p->gplot_prefix);

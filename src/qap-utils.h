@@ -1,7 +1,7 @@
 /*
  *  Quadratic Assignment Problem
  *
- *  Copyright (C) 2002-2015 Daniel Diaz
+ *  Copyright (C) 2015-2022 Daniel Diaz
  *
  *  qap-utils.c: QAP utilities - header file
  */

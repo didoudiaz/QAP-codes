@@ -1,7 +1,7 @@
 /*
  *  Extended Extremal Optimization for the Quadratic Assignment Problem
  *
- *  Copyright (C) 2015 Daniel Diaz
+ *  Copyright (C) 2015-2022 Daniel Diaz
  *
  *  eo-qap.c: solve QAP with an extended version of EO
  */
@@ -35,22 +35,19 @@
 #endif
 
 
-static int max_iters = 500000;		/* default */
 static char *g_fname = NULL;		/* default: no graph output */
 static char *g_fname1 = NULL;		/* default: no graph output */
 
 
 static int size;		/* QAP problem size */
-
 static QAPMatrix mat_A, mat_B;	/* QAP matrices */
-static QAPVector sol, best_sol;
+//static QAPVector sol;
 
-static QAPMatrix delta;
 
 typedef struct
 {
   int index;
-  int fitness;			/* lambda value = best cost delta if permuted */
+  int fitness;			/* lambda value = best cost delta if swapped */
 #ifdef FAST_VAR2_SELECTION
   int index2;
 #endif
@@ -77,7 +74,6 @@ Init_Main(void)
   pdf.tau = NAN;
   pdf.force = NAN;
 
-  Register_Option("-m", OPT_INT, "ITERS", "set maximum #iterations", &max_iters);
   Register_Option("-p", OPT_STR, "PDF",   buff, &pdf.pdf_name);
   Register_Option("-t", OPT_DBL, "TAU",   "specify PDF parameter tau", &pdf.tau);
   Register_Option("-f", OPT_DBL, "FORCE", "specify PDF force level (in [0:1])", &pdf.force);
@@ -110,137 +106,9 @@ Display_Parameters(QAPInfo *qi, int target_cost)
 
   PDF_Init(&pdf);
 
-  printf("max iterations: %d\n", max_iters);
   printf("used PDF      : %s\n", pdf.pdf_name);
   printf("tau parameter : %g\n", pdf.tau);
   printf("force level   : %g\n", pdf.force);
-}
-
-
-
-
-/*
- *  The following functions are strongly inspired from of E. Taillard's
- *  Robust Taboo Search code.
- *  http://mistic.heig-vd.ch/taillard/codes.dir/tabou_qap2.c
- */
-
-/*
- *  Computes the cost difference if elements i and j are permuted
- */
-
-int
-Compute_Delta(int i, int j)
-{
-  int pi = sol[i];
-  int pj = sol[j];
-  int k, pk;
-  int d = (mat_A[i][i] - mat_A[j][j]) * (mat_B[pj][pj] - mat_B[pi][pi]) +
-          (mat_A[i][j] - mat_A[j][i]) * (mat_B[pj][pi] - mat_B[pi][pj]);
-
-  for (k = 0; k < size; k++)
-    {
-      if (k != i && k != j)
-	{
-	  pk = sol[k];
-	  d += (mat_A[k][i] - mat_A[k][j]) * (mat_B[pk][pj] - mat_B[pk][pi]) +
-	       (mat_A[i][k] - mat_A[j][k]) * (mat_B[pj][pk] - mat_B[pi][pk]);
-	}
-    }
-
-  return d;
-}
-
-
-
-/*
- *  Computes the entire delta table
- */
-
-void
-Compute_All_Delta(void)
-{
-  int i, j;
-
-  for (i = 0; i < size; i++)
-    {
-      delta[i][i] = 0;		/* actually not needed since never used... */
-      for (j = i + 1; j < size; j++)
-	delta[i][j] = Compute_Delta(i, j);
-    }
-}
-
-
-
-/*
- *  As Compute_Delta: computes the cost difference if elements i and j are permuted
- *  but the value of delta[i][j] is supposed to be known before
- *  the transposition of elements r and s.
- */
-int
-Compute_Delta_Part(int i, int j, int r, int s)
-{
-  int pi = sol[i];
-  int pj = sol[j];
-  int pr = sol[r];
-  int ps = sol[s];
-
-  return delta[i][j] +
-    (mat_A[r][i] - mat_A[r][j] + mat_A[s][j] - mat_A[s][i]) *
-    (mat_B[ps][pi] - mat_B[ps][pj] + mat_B[pr][pj] - mat_B[pr][pi]) +
-    (mat_A[i][r] - mat_A[j][r] + mat_A[j][s] - mat_A[i][s]) *
-    (mat_B[pi][ps] - mat_B[pj][ps] + mat_B[pj][pr] - mat_B[pi][pr]);
-}
-
-
-
-
-/*
- *  Computes the cost of a solution
- */
-int
-Cost_Of_Solution()
-{
-  int i, j;
-  int r = 0;
-
-  for (i = 0; i < size; i++)
-    for (j = 0; j < size; j++)
-      r += mat_A[i][j] * mat_B[sol[i]][sol[j]];
-
-
-  Compute_All_Delta();
-
-  return r;
-}
-
-
-/*
- *  Return the cost if i1 and i1 are swapped
- */
-int
-Cost_If_Swap(int cost, int i1, int i2)
-{
-  return cost + ((i1 <= i2) ? delta[i1][i2] : delta[i2][i1]);
-}
-
-
-
-/* 
- *  Records a swap (to be called once a swap has been done) 
- */
-
-void
-Executed_Swap(int i1, int i2)
-{
-  int i, j;
-
-  for (i = 0; i < size; i++)
-    for (j = i + 1; j < size; j++)
-      if (i != i1 && i != i2 && j != i1 && j != i2)
-	delta[i][j] = Compute_Delta_Part(i, j, i1, i2);
-      else
-	delta[i][j] = Compute_Delta(i, j);
 }
 
 
@@ -301,13 +169,13 @@ Select_First_Variable(void)
  *  We propose to use a the min-conflict heuristics
  */
 int
-Select_Second_Variable(int i, int *cost, int selected_rank)
+Select_Second_Variable(int i, int cost, int selected_rank)
 {
 #ifndef FAST_VAR2_SELECTION
 
   int j;
   int min_j = 0;
-  int min_cost = -1U >> 1;
+  int min_cost = INT_MAX;
   int min_nb = 0;
 
   for (j = 0; j < size; j++)
@@ -315,7 +183,7 @@ Select_Second_Variable(int i, int *cost, int selected_rank)
       if (i == j)
 	continue;
 
-      int c = Cost_If_Swap(*cost, i, j);
+      int c = Cost_If_Swap(cost, i, j);
 
       if (c < min_cost)
 	{
@@ -328,18 +196,16 @@ Select_Second_Variable(int i, int *cost, int selected_rank)
     }
 
 #if 0
-  int c = Cost_If_Swap(*cost, i, fit_tbl[selected_rank].index2);
+  int c = Cost_If_Swap(cost, i, fit_tbl[selected_rank].index2);
   if (c != min_cost)
     printf("STRANGE: %d != %d\n", min_cost, c);
 #endif
 
-  *cost = min_cost;
   return min_j;
 
 #else
 
   int j = fit_tbl[selected_rank].index2;
-  *cost = Cost_If_Swap(*cost, i, j);
   return j;
 
 #endif
@@ -364,33 +230,22 @@ CmpFitForSort(const void *x, const void *y)
 /*
  *  General solving procedure
  */
-int
-Solve(QAPInfo *qi, int target_cost, QAPVector sol0)
+void
+Solve(QAPInfo *qi, QAPVector sol)
 {
-  int cost, best_cost;
-  int iter_no = 0;
-  int verbose = Get_Verbose_Level();
-
   size = qi->size;
-  sol = sol0;
-
-  if (best_sol == NULL)		/* solver not yet initialized */
-    {
-      best_sol = QAP_Alloc_Vector(size);
-
-      fit_tbl = Malloc(size * sizeof(fit_tbl[0]));
-
-      delta = QAP_Alloc_Matrix(size);
-    }
-
-
   mat_A = qi->a;
   mat_B = qi->b;
 
-  cost = best_cost = Cost_Of_Solution();
-  QAP_Copy_Vector(best_sol, sol, size);
+  if (fit_tbl == NULL)		/* solver not yet initialized */
+    {
+      fit_tbl = Malloc(size * sizeof(fit_tbl[0]));
+    }
+  
+  int cost = Cost_Of_Solution(sol);
+  int iter_no = 0;
 
-  while (cost > target_cost && ++iter_no <= max_iters && !Is_Interrupted())
+  while (Report_Solution(iter_no++, cost, sol)) 
     {
       int i, j;
 
@@ -405,7 +260,7 @@ Solve(QAPInfo *qi, int target_cost, QAPVector sol0)
 	    {
 	      if (i == j)
 		continue;
-	      int d = (i < j) ? delta[i][j] : delta[j][i];
+	      int d = Get_Delta(i, j);
 
 	      if (d < f)
 		{
@@ -432,32 +287,8 @@ Solve(QAPInfo *qi, int target_cost, QAPVector sol0)
 
       int selected_rank = Select_First_Variable();
       i = fit_tbl[selected_rank].index;
-      j = Select_Second_Variable(i, &cost, selected_rank);
+      j = Select_Second_Variable(i, cost, selected_rank);
 
-      int x = sol[i];		/* swap i and j */
-      sol[i] = sol[j];
-      sol[j] = x;
-
-      Executed_Swap(i, j);	/* register the swap */
-
-      if (cost < best_cost)
-	{
-	  best_cost = cost;
-	  QAP_Copy_Vector(best_sol, sol, size);
-	  if (verbose > 0)
-	    {
-	      printf("iter:%9d  cost: %s\n", iter_no, Format_Cost_And_Gap(cost, target_cost));
-	      if (verbose > 1)
-		QAP_Display_Vector(best_sol, size);
-	    }
-	}
-#if 0				/* to check if incremental delta[][] works */
-      if (cost != Cost_Of_Solution())
-	printf("ERROR on cost: %d != %d at iter: %d\n", cost, Cost_Of_Solution(), iter_no);
-#endif
+      cost = Do_Swap(cost, sol, i, j); /* register the swap */
     }
-
-  QAP_Copy_Vector(sol, best_sol, size);
-
-  return best_cost;
 }

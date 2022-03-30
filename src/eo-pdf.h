@@ -1,7 +1,7 @@
 /*
  *  Extended Extremal Optimization
  *
- *  Copyright (C) 2015 Daniel Diaz
+ *  Copyright (C) 2015-2022 Daniel Diaz
  *
  *  eo-pdf.h: Probability Distribution Function (PDF) management - header file
  */
