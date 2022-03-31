@@ -149,6 +149,7 @@ main(int argc, char *argv[])
   printf("\n");
   printf("Stop when cost <= %d\n", target_cost);
   printf("max iterations: %d\n", max_exec_iters);
+  printf("restart iters : %d\n", max_restart_iters);
 
   Display_Parameters(&qap_info, target_cost);
   
@@ -167,7 +168,9 @@ main(int argc, char *argv[])
   min_time = BIG;
   max_time = 0.0;
 
-  for (exec_no = 0; exec_no < n_execs && !ctrl_c; exec_no++)
+  ctrl_c = 0;
+  
+  for (exec_no = 0; exec_no < n_execs && !Is_Interrupted(); exec_no++)
     {
 #if 1
       int reuse = 0;
@@ -183,7 +186,6 @@ main(int argc, char *argv[])
 #endif
       exec_best_cost = BIG;
       exec_iters = 0;
-      ctrl_c = 0;
 
       Init_Elapsed_Time();
       signal(SIGINT, Ctrl_C_Handler);
@@ -424,6 +426,8 @@ Report_Solution(int iter_no, int cost, QAPVector sol)
 #endif
   return !Is_Interrupted() && cost > target_cost && exec_iters <= max_exec_iters && iter_no <= max_restart_iters;
 }
+
+
 
 
 /*
