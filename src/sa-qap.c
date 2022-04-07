@@ -55,24 +55,16 @@
 
 /********************************************************************/
 
-    
-const int infini = 1399999999;
 const int nb_iter_initialisation = 1000; // Connolly proposes nb_iterations/100
 
 
 /*--------------- choses manquantes -----------------*/
-enum booleen {faux, vrai};
-
 
 #define max(a, b) ((a) > (b) ? (a) : (b))
 #define min(a, b) ((a) < (b) ? (a) : (b))
 
-void swap(int *a, int *b) {int temp = *a; *a = *b; *b = temp;}
-
-
 /*-------------------------------------------------*/
 
-int nb_iterations = 100000;         /* default */
 
 /*
  *  Define accepted options
@@ -80,7 +72,6 @@ int nb_iterations = 100000;         /* default */
 void
 Init_Main(void) 
 {
-  Register_Option("-m", OPT_INT, "NB_ITERATIONS", "set maximum #iterations", &nb_iterations);
 }
 
 
@@ -88,9 +79,8 @@ Init_Main(void)
  *  Display parameters
  */
 void
-Display_Parameters(QAPInfo *qi, int target_cost)
+Display_Parameters(QAPInfo qi, int target_cost)
 {
-  printf("max iterations: %d\n", nb_iterations);
 }
 
 
@@ -98,88 +88,48 @@ Display_Parameters(QAPInfo *qi, int target_cost)
 
 /************************** sa for qap ********************************/
 
-
-int calc_delta_complet2(int n, QAPMatrix a, QAPMatrix b,
-			QAPVector p, int r, int s)
-{
-  int d = 
-    (a[r][r]-a[s][s])*(b[p[s]][p[s]]-b[p[r]][p[r]]) +
-    (a[r][s]-a[s][r])*(b[p[s]][p[r]]-b[p[r]][p[s]]);
-  int k;
-  for (k = 0; k < n; k = k + 1) 
-    if (k!=r && k!=s)
-      d = d + (a[k][r]-a[k][s])*(b[p[k]][p[s]]-b[p[k]][p[r]]) +
-	(a[r][k]-a[s][k])*(b[p[s]][p[k]]-b[p[r]][p[k]]);
-  return(d);
-}
-
-int calcule_cout(int n, QAPMatrix a, QAPMatrix b, QAPVector p)
-{
-  int i, j;
-  int c = 0;
-  for (i = 0; i < n; i = i + 1) 
-    for (j = 0; j < n; j = j + 1)
-      c = c + a[i][j] * b[p[i]][p[j]];
-  return(c);
-}
-
-void tire_solution_aleatoire(int n, QAPVector  p)
-{
-  int i;
-  for (i = 0; i < n; i = i+1)
-    p[i] = i;
-  for (i = 1; i < n; i = i+1) 
-    swap(&p[i-1], &p[Random_Interval(i-1, n - 1)]);
-}
-
 /*
  *  General solving procedure
  */
 
-int
-Solve(QAPInfo *qi, int target_cost, QAPVector meilleure_sol)
+void
+Solve(QAPInfo qi)
 {
   int n = qi->size;             /* problem size */
-  QAPMatrix a = qi->a;          /* flows matrix */
-  QAPMatrix b = qi->b;          /* distance matrix */
-  QAPVector p;
   int i, r, s;
   int delta;
-  int k = n*(n-1)/2, mxfail = k, nb_fail, no_iteration;
-  int dmin = infini, dmax = 0;
+  int k = n*(n-1)/2, mxfail = k, nb_fail;
+  int dmin = INT_MAX, dmax = 0;
   double t0, tf, beta, tfound, temperature;
-  int verbose = Get_Verbose_Level();
+  int meilleur_cout = qi->cost;
 
-  p = QAP_Alloc_Vector(n);
-
-  for (i = 0; i < n; i = i + 1) 
-    p[i] = meilleure_sol[i];
-  int Cout = calcule_cout(n, a, b, p);
-  int meilleur_cout = Cout;
-
-  for (no_iteration = 1; no_iteration <= nb_iter_initialisation; no_iteration = no_iteration+1)
+  for (i = 1; i <= nb_iter_initialisation; i++)
     {
       r = Random_Interval(0, n - 1);
       s = Random_Interval(0, n - 2);
-      if (s >= r) s = s+1;
+      if (s >= r)
+	s = s+1;
 
-      delta = calc_delta_complet2(n,a,b,p,r,s);
+      delta = QAP_Get_Delta(qi, r, s);
       if (delta > 0)
-	{dmin = min(dmin, delta); dmax = max(dmax, delta);}; 
-      Cout = Cout + delta;
-      swap(&p[r], &p[s]);
-    };
+	{
+	  dmin = min(dmin, delta);
+	  dmax = max(dmax, delta);
+	}
+      QAP_Do_Swap(qi, r, s);
+    }
   t0 = dmin + (dmax - dmin)/10.0;
   tf = dmin;
-  beta = (t0 - tf)/(nb_iterations*t0*tf);
+  beta = (t0 - tf)/(Get_Max_Iterations()*t0*tf);
 
   nb_fail = 0;
   tfound = t0;
   temperature = t0;
   r = 0; s = 1;
-  no_iteration = 0;
- while (Cout > target_cost && ++no_iteration <= nb_iterations - nb_iter_initialisation && !Is_Interrupted())
+  qi->iter_no = 0;
+  while (Report_Solution(qi))
     {
+      qi->iter_no++;
       temperature = temperature / (1.0 + beta*temperature);
 
       s = s + 1;
@@ -189,34 +139,26 @@ Solve(QAPInfo *qi, int target_cost, QAPVector meilleure_sol)
 	  if (r >= n - 1) 
 	    r = 0;
 	  s = r + 1;
-	};
+	}
 
-      delta = calc_delta_complet2(n,a,b,p,r,s);
-      if ((delta < 0) || (Random_Double() < exp(-(double) delta/temperature)) ||
-	  mxfail == nb_fail)
-	{Cout = Cout + delta; swap(&p[r], &p[s]); nb_fail = 0;}
-      else nb_fail = nb_fail + 1;
-
-      if (mxfail == nb_fail) {beta = 0; temperature = tfound;};
-      if (Cout < meilleur_cout)
+      delta = QAP_Get_Delta(qi, r, s);
+      if ((delta < 0) || (Random_Double() < exp(-(double) delta/temperature)) || mxfail == nb_fail)
 	{
-	  meilleur_cout = Cout;
-          QAP_Copy_Vector(meilleure_sol, p, n);
+	  QAP_Do_Swap(qi, r, s);
+	  nb_fail = 0;
+	}
+      else
+	nb_fail = nb_fail + 1;
+
+      if (mxfail == nb_fail)
+	{
+	  beta = 0;
+	  temperature = tfound;
+	}
+      if (qi->cost < meilleur_cout)
+	{
+	  meilleur_cout = qi->cost;
 	  tfound = temperature;
-          if (verbose > 0)
-            {
-              printf("iter:%9d  cost: %s\n", no_iteration, Format_Cost_And_Gap(Cout, target_cost));
-              if (verbose > 1)
-                QAP_Display_Vector(meilleure_sol, n);
-            }
-	}; 
-    };
-
-  printf("Best solution found : \n");
-  for (i = 0; i < n; i = i + 1) 
-    printf("%d ", meilleure_sol[i]);
-  printf("\n");
-
-  QAP_Free_Vector(p);
-  return meilleur_cout;
+	}
+    }
 }

@@ -36,40 +36,23 @@ void Register_Option(char *name, OptType type, char *help_arg, char *help_text, 
 
 int Get_Verbose_Level(void);
 
-
-
-int Cost_Of_Solution(QAPVector sol);
-
-void Compute_All_Delta(QAPVector sol);
-
-int Compute_Delta(QAPVector sol, int i, int j);
-
-int Compute_Delta_Part(QAPVector sol, int i, int j, int r, int s);
-
-int Get_Delta(int i, int j);
-
-int Cost_If_Swap(int cost, int i, int j);
-
-int Do_Swap(int current_cost, QAPVector sol, int i, int j);
-
-void Executed_Swap(QAPVector sol, int i, int j);
-
-
-
-int Report_Solution(int iter_no, int cost, QAPVector sol);
+int Report_Solution(QAPInfo qi);
 
 int Is_Interrupted(void);
 
 char *Format_Cost_And_Gap(int cost, int target_cost);
 
+int Read_Values(QAPVector sol, int size);
+
+int Get_Max_Iterations(void);
 
 		/* these functions must be provided by the user code */
 
 void Init_Main(void);
 
-void Display_Parameters(QAPInfo *qi, int target_cost);
+void Display_Parameters(QAPInfo qi, int target_cost);
 
-void Solve(QAPInfo *qi, QAPVector sol);
+void Solve(QAPInfo qi);
 
 
 #endif

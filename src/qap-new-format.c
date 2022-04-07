@@ -4,7 +4,7 @@
 #include "qap-utils.h"
 
 
-QAPInfo qap_info;
+QAPInfo qi;
 
 int
 main(int argc, char *argv[])
@@ -26,9 +26,10 @@ main(int argc, char *argv[])
     }
 
 
-  n = QAP_Load_Problem(argv[1 + exchange], &qap_info, 0);
-  a = (!exchange) ? qap_info.a : qap_info.b;
-  b = (!exchange) ? qap_info.b : qap_info.a;
+  qi = QAP_Load_Problem(argv[1 + exchange], 0);
+  n = qi->size;
+  a = (!exchange) ? qi->a : qi->b;
+  b = (!exchange) ? qi->b : qi->a;
 
   int max = 0;
 
@@ -50,10 +51,10 @@ main(int argc, char *argv[])
       max10 *= 10;
     }
 
-  if (qap_info.opt <= 0)
-    qap_info.opt = -qap_info.bound;
+  if (qi->opt <= 0)
+    qi->opt = -qi->bound;
 
-  printf("%d %d %d\n", qap_info.size, qap_info.opt, qap_info.bks);
+  printf("%d %d %d\n", qi->size, qi->opt, qi->bks);
   for(i = 0; i < n; i++)
     {
       int c = '\n';

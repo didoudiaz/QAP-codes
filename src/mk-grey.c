@@ -21,7 +21,7 @@ int bks16[256] =
 int
 main(int argc, char *argv[])
 {
-  QAPInfo qap_info;
+  QAPInfo qi;
   char *file_name;
   int i, j;
   int n;
@@ -44,17 +44,18 @@ main(int argc, char *argv[])
 
   file_name = (sz == 8) ? "grey8_8-base.dat" : "grey16_16-base.dat";
 
-  n = QAP_Load_Problem(file_name, &qap_info, 0);
+  qi = QAP_Load_Problem(file_name, 0);
+  n = qi->size;
 
   int max = 0;
 
   for (i = 0; i < n; i++)
     for(j = 0; j < n; j++)
       {
-	qap_info.a[i][j] = (i < m && j < m) ? 1 : 0;
+	qi->a[i][j] = (i < m && j < m) ? 1 : 0;
 
-        if (qap_info.b[i][j] > max)
-          max = qap_info.b[i][j];
+        if (qi->b[i][j] > max)
+          max = qi->b[i][j];
       }
 
   int nb10 = 0;
@@ -67,18 +68,18 @@ main(int argc, char *argv[])
     }
 
 
-  /*  qap_info.opt = 0;
-      qap_info.bound = 0;
+  /*  qi->opt = 0;
+      qi->bound = 0;
   */
-  qap_info.bks = (sz == 8) ? bks8[m] : bks16[m];
+  qi->bks = (sz == 8) ? bks8[m] : bks16[m];
 
-  printf("%d %d %d\n", qap_info.size, qap_info.opt, qap_info.bks);
+  printf("%d %d %d\n", qi->size, qi->opt, qi->bks);
   for(i = 0; i < n; i++)
     {
       int c = '\n';
       for (j = 0; j < n; j++)
         {
-          printf("%c%d", c, qap_info.a[i][j]);
+          printf("%c%d", c, qi->a[i][j]);
           c = ' ';
         }
     }
@@ -89,7 +90,7 @@ main(int argc, char *argv[])
       int c = '\n';
       for (j = 0; j < n; j++)
         {
-          printf("%c%*d", c, nb10, qap_info.b[i][j]);
+          printf("%c%*d", c, nb10, qi->b[i][j]);
           c = ' ';
         }
     }

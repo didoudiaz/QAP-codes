@@ -17,8 +17,8 @@ CFLAGS=-Wall -fomit-frame-pointer -O3 -W -Wno-unused-parameter
 FCFLAGS = -O3
 
 OBJS=main.o qap-utils.o tools.o 
-#EXECS=eo-qap rots-qap sa-qap fant-qap brute-force qap-new-format check-sol mk-grey
-EXECS=eo-qap rots-qap qap-new-format check-sol mk-grey
+EXECS=eo-qap rots-qap sa-qap fant-qap brute-force qap-new-format check-sol mk-grey
+
 
 #EXECS+=qapeli  qapglb
 

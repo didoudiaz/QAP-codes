@@ -40,8 +40,6 @@ static char *g_fname1 = NULL;		/* default: no graph output */
 
 
 static int size;		/* QAP problem size */
-static QAPMatrix mat_A, mat_B;	/* QAP matrices */
-//static QAPVector sol;
 
 
 typedef struct
@@ -88,10 +86,8 @@ Init_Main(void)
  *  Displays parameters
  */
 void
-Display_Parameters(QAPInfo *qi, int target_cost)
+Display_Parameters(QAPInfo qi, int target_cost)
 {
-  size = qi->size;
-
   if (!isnan(pdf.tau))
     {
       if (!isnan(pdf.force))
@@ -100,7 +96,7 @@ Display_Parameters(QAPInfo *qi, int target_cost)
     }
 
   pdf.verbose = Get_Verbose_Level();
-  pdf.size = size;
+  pdf.size = qi->size;
   pdf.gplot_prefix = (g_fname1 != NULL) ? g_fname1 : g_fname;
   pdf.show_gplot = (g_fname1 != NULL);
 
@@ -119,7 +115,7 @@ Display_Parameters(QAPInfo *qi, int target_cost)
  *  Returns the rank in the fitness table
  */
 
-int
+static int
 Select_First_Variable(void)
 {
 #if 0   /* select f with the PDF and one variable among all having this f */
@@ -168,8 +164,8 @@ Select_First_Variable(void)
  *  Original EO proposes to select a random one (using the PDF)
  *  We propose to use a the min-conflict heuristics
  */
-int
-Select_Second_Variable(int i, int cost, int selected_rank)
+static int
+Select_Second_Variable(QAPInfo qi, int i, int selected_rank)
 {
 #ifndef FAST_VAR2_SELECTION
 
@@ -183,7 +179,7 @@ Select_Second_Variable(int i, int cost, int selected_rank)
       if (i == j)
 	continue;
 
-      int c = Cost_If_Swap(cost, i, j);
+      int c = QAP_Cost_If_Swap(qi, i, j);
 
       if (c < min_cost)
 	{
@@ -196,7 +192,7 @@ Select_Second_Variable(int i, int cost, int selected_rank)
     }
 
 #if 0
-  int c = Cost_If_Swap(cost, i, fit_tbl[selected_rank].index2);
+  int c = QAP_Cost_If_Swap(qi, i, fit_tbl[selected_rank].index2);
   if (c != min_cost)
     printf("STRANGE: %d != %d\n", min_cost, c);
 #endif
@@ -215,7 +211,7 @@ Select_Second_Variable(int i, int cost, int selected_rank)
 /*
  *  Comparator used by qosrt(3) to sort the table of fitness
  */
-int
+static int
 CmpFitForSort(const void *x, const void *y)
 {
   FitInfo *p1 = (FitInfo *) x;
@@ -231,22 +227,17 @@ CmpFitForSort(const void *x, const void *y)
  *  General solving procedure
  */
 void
-Solve(QAPInfo *qi, QAPVector sol)
+Solve(QAPInfo qi)
 {
   size = qi->size;
-  mat_A = qi->a;
-  mat_B = qi->b;
-
-  if (fit_tbl == NULL)		/* solver not yet initialized */
-    {
-      fit_tbl = Malloc(size * sizeof(fit_tbl[0]));
-    }
   
-  int cost = Cost_Of_Solution(sol);
-  int iter_no = 0;
-
-  while (Report_Solution(iter_no++, cost, sol)) 
+  if (fit_tbl == NULL)		/* solver not yet initialized */
+    fit_tbl = Malloc(size * sizeof(fit_tbl[0]));
+  
+  qi->iter_no = 0;
+  while (Report_Solution(qi)) 
     {
+      qi->iter_no++;
       int i, j;
 
       for (i = 0; i < size; i++)
@@ -260,7 +251,7 @@ Solve(QAPInfo *qi, QAPVector sol)
 	    {
 	      if (i == j)
 		continue;
-	      int d = Get_Delta(i, j);
+	      int d = QAP_Get_Delta(qi, i, j);
 
 	      if (d < f)
 		{
@@ -287,8 +278,8 @@ Solve(QAPInfo *qi, QAPVector sol)
 
       int selected_rank = Select_First_Variable();
       i = fit_tbl[selected_rank].index;
-      j = Select_Second_Variable(i, cost, selected_rank);
+      j = Select_Second_Variable(qi, i, selected_rank);
 
-      cost = Do_Swap(cost, sol, i, j); /* register the swap */
+      QAP_Do_Swap(qi, i, j); /* register the swap */
     }
 }

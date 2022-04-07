@@ -4,7 +4,7 @@
  *  source: http://mistic.heig-vd.ch/taillard/codes.dir/fant_qap.c
  *  Adapted by Daniel Diaz
  *
- *  fant-qap.c: solve QAP using Fast and system of: E. Taillard
+ *  fant-qap.c: solve QAP using Fast ant system of: E. Taillard
  */
 
 /* Programme for approximately solving the quadratic assignment problem.
@@ -51,13 +51,7 @@ New best solution value, cost : 1183760  Found at iteration : 25
 #include "qap-utils.h"
 #include "main.h"
 
-
-
-const int infinite = 2099999999;
-
-
 int R = 10;			/* re-enforcement of matrix entries */
-int nb_iterations = 10000000;
 
 
 /*
@@ -66,8 +60,7 @@ int nb_iterations = 10000000;
 void
 Init_Main(void) 
 {
-  Register_Option("-m", OPT_INT,  "MAX_ITERS",     "set maximum #iterations", &nb_iterations); 
-  Register_Option("-r", OPT_INT,  "R",             "set the R parameter", &R); 
+  Register_Option("-R", OPT_INT,  "R", "set FANT R parameter", &R); 
 }
 
 
@@ -75,75 +68,48 @@ Init_Main(void)
  *  Display parameters
  */
 void
-Display_Parameters(QAPInfo *qi, int target_cost)
+Display_Parameters(QAPInfo qi, int target_cost)
 {
-  printf("max iterations: %d\n", nb_iterations);
   printf("R parameter   : %d\n", R);
 }
 
 void swap(int *a, int *b) {int temp = *a; *a = *b; *b = temp;}
 /**********************************************************/
 
-   
-// compute the value of move (r, s) on solution p
-int compute_delta(int n, QAPMatrix a, QAPMatrix  b,
-                  QAPVector  p, int r, int s)
-{ int d; int k;
-  d = (a[r][r]-a[s][s])*(b[p[s]][p[s]]-b[p[r]][p[r]]) +
-      (a[r][s]-a[s][r])*(b[p[s]][p[r]]-b[p[r]][p[s]]);
-  for (k = 0; k < n; k++) if (k!=r && k!=s)
-    d = d + (a[k][r]-a[k][s])*(b[p[k]][p[s]]-b[p[k]][p[r]]) +
-            (a[r][k]-a[s][k])*(b[p[s]][p[k]]-b[p[r]][p[k]]);
-  return d;
- }
-
-// compute the cost of solution p
-int compute_cost(int n, QAPMatrix a, QAPMatrix b, QAPVector p)
-{ int c = 0; int i, j;
-  for (i = 0; i < n; i++) 
-    for (j = 0; j < n; j++)
-      c += a[i][j] * b[p[i]][p[j]];
-  return c;
- }
-
-// generate a random permutation p
-void generate_random_permutation(int n, QAPVector   p)
- {int i;
-  for (i = 0; i < n; i++) p[i] = i;
-  for (i = 0; i < n-1; i++) swap(&p[i], &p[Random_Interval(i, n-1)]);
- }
-
 // local search
 // Scan the neighbourhood at most twice
 // Perform improvements as soon as they are found
-void local_search(int n, QAPMatrix  a, QAPMatrix  b,
-                  QAPVector  p, int *cost)
-{int r, s, i, j, scan_nr, nr_moves;
+void local_search(QAPInfo qi, QAPVector move)
+{
+  int n = qi->size;		/* problem size */
+  int r, s, i, j, scan_nr, nr_moves;
   int delta;
-  // set of moves, numbered from 0 to index
-  static QAPVector move = NULL;
-  if (move == NULL)
-    move = QAP_Alloc_Vector(n* (n-1) / 2);
   nr_moves = 0;
   for (i = 0; i < n-1; i++)
-    for (j=i+1; j < n; j++) move[nr_moves++] = n*i+j;
+    for (j=i+1; j < n; j++)
+      move[nr_moves++] = n*i+j;
   int improved = true;
   for (scan_nr = 0;  scan_nr < 2 && improved;  scan_nr++)
-    { improved = false;
+    {
+      improved = false;
+#if 0
       for (i = 0; i < nr_moves-1; i++)
-	swap(&move[i], &move[Random_Interval(i+1, nr_moves-1)]);
+	swap(&move[i], &move[Random_Interval(i+1, nr_moves-1)]); /* TODO replace by Random_Permut_Array() */
+#else
+      Random_Array_Permut(move, nr_moves);
+#endif
       for (i = 0; i < nr_moves; i++)
 	{
 	  r = move[i]/n;
 	  s = move[i]%n;
-	  delta = compute_delta(n, a, b, p, r, s);
+	  delta = QAP_Get_Delta(qi, r, s);
 	  if (delta < 0)
-	    { *cost += delta; swap(&p[r], &p[s]); 
+	    {
+	      QAP_Do_Swap(qi, r, s);
 	      improved = true;
 	    }
 	}
     }
-  //  QAP_Free_Vector(move);
 }
 
 
@@ -158,36 +124,36 @@ void init_trace(int n, int increment, QAPMatrix trace)
  }
 
 // memory update
-void update_trace(int n, QAPVector p, QAPVector best_p,
-                   int *increment, int R, QAPMatrix trace)
+int update_trace(int n, QAPVector p, QAPVector best_p,
+		 int increment, int R, QAPMatrix trace)
 { int i = 0;
-  while (i < n && p[i] == best_p[i]) i++;
+  while (i < n && p[i] == best_p[i])
+    i++;
   if (i == n)
-  {
-    (*increment)++;
-    init_trace(n, *increment, trace);
-  }
+    {
+      increment++;
+      init_trace(n, increment, trace);
+    }
   else
     for (i = 0; i < n; i++)
-    {
-      trace[i][p[i]] += *increment;
-      trace[i][best_p[i]] += R;
-    }
- }
+      {
+	trace[i][p[i]] += increment;
+	trace[i][best_p[i]] += R;
+      }
+  return increment;
+}
 
 // generate a solution with probability of setting p[i] == j
 // proportionnal to trace[i][j]
-void generate_solution_trace(int n, QAPVector p, QAPMatrix trace)
+void generate_solution_trace(QAPInfo qi, QAPMatrix trace,
+			     QAPVector nexti, QAPVector nextj, QAPVector sum_trace)
 {
+  int n = qi->size;
+  QAPVector p = qi->sol;
   int i, j, k, target, sum;
-  QAPVector nexti, nextj, sum_trace;
-  nexti = QAP_Alloc_Vector(n);
-  nextj = QAP_Alloc_Vector(n);
-  sum_trace = QAP_Alloc_Vector(n);
-
-
-  generate_random_permutation(n, nexti);
-  generate_random_permutation(n, nextj);
+  
+  Random_Permut(nexti, n, NULL, 0);
+  Random_Permut(nextj, n, NULL, 0);
   for (i = 0; i < n; i++)
     {
       sum_trace[i] = 0;
@@ -210,9 +176,6 @@ void generate_solution_trace(int n, QAPVector p, QAPMatrix trace)
 	sum_trace[nexti[k]] -= trace[nexti[k]][nextj[j]];
       swap(&nextj[j], &nextj[i]);
     }
-  QAP_Free_Vector(nexti);
-  QAP_Free_Vector(nextj);
-  QAP_Free_Vector(sum_trace);
 }
   
 
@@ -220,67 +183,65 @@ void generate_solution_trace(int n, QAPVector p, QAPMatrix trace)
 
 /********************************************************************/
 
-int
-Solve(QAPInfo *qi, int target_cost, QAPVector best_sol)
+#define no_iteration qi->iter_no
+void
+Solve(QAPInfo qi)
 {
   int n = qi->size;		/* problem size */
-  QAPMatrix a = qi->a;		/* flows matrix */
-  QAPMatrix b = qi->b;		/* distance matrix */
-  int cost, best_cost;                    // cost of current solution, best cost
-  QAPVector p, best_p;                  // current solution and best solution
+  int best_cost;                    // cost of current solution, best cost
+  QAPVector p = qi->sol;             // current solution
+  QAPVector best_p;                  // best solution
   QAPMatrix trace;                      // ant memory
   int increment;                       // parameter for managing the traces
-  int no_iteration;                    // iteration counters
-  int verbose = Get_Verbose_Level();
+  QAPVector move;		       // set of moves, numbered from 0 to index
+  QAPVector nexti, nextj, sum_trace;
 
-  //  printf(" parameter R and number of iterations : \n");
-  //scanf("%d%d", &R, &nb_iterations); 
+  
+  /*int*/ no_iteration = 0;                // iteration counters
 
-  p = QAP_Alloc_Vector(n);
-  best_p = QAP_Alloc_Vector(n);
-  QAP_Copy_Vector(p, best_sol, n);
-  memset(best_p, 0, n * sizeof(int));  // must be initially different from p
+  best_p = QAP_Alloc_Vector(n);	/*  must be different from p, OK since initialized with 0, */
+  best_cost = INT_MAX;
 
   trace = QAP_Alloc_Matrix(n);
   increment = 1;
   init_trace(n, increment, trace);
-  best_cost = compute_cost(n, a, b, p);//infinite;
+
+  move = QAP_Alloc_Vector(n * (n-1) / 2);
+
+  nexti = QAP_Alloc_Vector(n);
+  nextj = QAP_Alloc_Vector(n);
+  sum_trace = QAP_Alloc_Vector(n);
 
   // FANT iterations
-  for (no_iteration = 1; no_iteration <= nb_iterations && best_cost > target_cost && !Is_Interrupted();
-       no_iteration = no_iteration + 1)
-                                                   
-  { // Build a new solution
-    generate_solution_trace(n, p, trace);
-    cost = compute_cost(n, a, b, p);
-    // Improve solution with a local search
-    local_search(n, a, b, p, &cost);
+  while(Report_Solution(qi))                                             
+    {
+      no_iteration++;
 
-    // Best solution improved ?
-    if (cost < best_cost)
-    { best_cost = cost; 
-      QAP_Copy_Vector(best_sol, p, n);
-      if (verbose > 0)
+      // Build a new solution
+      generate_solution_trace(qi, trace, nexti, nextj, sum_trace);
+      QAP_Set_Solution(qi);
+      // Improve solution with a local search
+      local_search(qi, move);
+
+      // Best solution improved ?
+      if (qi->cost < best_cost)
 	{
-	  printf("iter:%9d  cost: %s\n", no_iteration, Format_Cost_And_Gap(best_cost, target_cost));
-	  if (verbose > 1)
-	    QAP_Display_Vector(best_sol, n);
+	  best_cost = qi->cost; 
+	  QAP_Copy_Vector(best_p, p, n);
+	  increment = 1;
+	  init_trace(n, increment, trace);
 	}
-	      //      printf("New best solution value, cost : %d  Found at iteration : %d\n", cost, no_iteration);
-	      //for (k = 0; k < n; k = k + 1) best_p[k] = p[k];
-	      //QAP_Display_Vector(p, n);
-      increment = 1;
-      init_trace(n, increment, trace);
-     }
-    else                                              
-      // Memory update
-      update_trace(n, p, best_p, &increment, R, trace);
-   };
+      else                                              
+	// Memory update
+	increment = update_trace(n, p, best_p, increment, R, trace);
+    }
 
   // ending the programme
-  QAP_Free_Vector(p);
+  //  QAP_Free_Vector(p);
   QAP_Free_Vector(best_p);
   QAP_Free_Matrix(trace, n);
-
-  return best_cost;
- }
+  QAP_Free_Vector(move);
+  QAP_Free_Vector(nexti);
+  QAP_Free_Vector(nextj);
+  QAP_Free_Vector(sum_trace);
+}

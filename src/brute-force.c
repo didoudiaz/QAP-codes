@@ -1,3 +1,23 @@
+/*
+ *  Brute force resolution for the Quadratic Assignment Problem
+ *
+ *  Copyright (C) 2015-2022 Daniel Diaz
+ *
+ *  brute-force.c: solve QAP with brute-force
+ */
+
+/* Brute force is OK for size <= 10. Don't forget the -m 
+ *
+ * brute-force ~/QAP-instances/QAPLIB-More/scr10.qap -v 1 -m 100000000
+ * needs 2753170 iters (12s on Intel Xeon Gold 6140 @ 2.30GHz)
+ *
+ * brute-force ~/QAP-instances/QAPLIB-More/tai11a.qap -v 1 -m 100000000
+ * needs 4933827 itees (23s)
+ *
+ * Can use -R to start from a random permut. In that case can use restarts:
+ * brute-force ~/QAP-instances/QAPLIB-More/tai11a.qap -v 1 -m 100000000 -R -r 100000
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -5,41 +25,9 @@
 #include "main.h"
 
 
-#ifndef SPEED
-//#define SPEED 0 
-//#define SPEED 1 
-#define SPEED 2 
-#endif
+QAPInfo glob_qi;
+int from_random;
 
-
-int n;
-QAPMatrix a;
-QAPMatrix b;
-
-QAPVector sol;
-int cost;
-
-#if SPEED == 2
-QAPMatrix delta;
-#endif
-
-#if SPEED >= 1
-
-
-#if 1
-#define RANDOM_PERMS   // define it to start from a random perm (instead of 0...n-1)
-#endif
-
-#ifndef RANDOM_PERMS
-
-#define PV(i)   sol[i]
-
-#else
-
-#define PV(i)   val[sol[i]]
-QAPVector val;
-
-#endif
 
 /*
  *  Defines accepted options
@@ -47,6 +35,7 @@ QAPVector val;
 void
 Init_Main(void)
 {
+  Register_Option("-R", OPT_NON, "", "start from a random permutation (instead of 0..n-1)", &from_random);
 }
 
 
@@ -54,121 +43,27 @@ Init_Main(void)
  *  Displays parameters
  */
 void
-Display_Parameters(QAPInfo *qi, int target_cost)
+Display_Parameters(QAPInfo qi, int target_cost)
 {
-  //size = qi->size;
-  //verbose = Get_Verbose_Level();
 }
-
-/*
- *  Compute the cost difference if elements i and j are permuted
- */
-int
-Compute_Delta(int i, int j)
-{
-  int pi = PV(i);
-  int pj = PV(j);
-  int k, pk;
-  int d = 
-    (a[i][i] - a[j][j]) * (b[pj][pj] - b[pi][pi]) +
-    (a[i][j] - a[j][i]) * (b[pj][pi] - b[pi][pj]);
-
-  for(k = 0; k < n; k++)
-    {
-      if (k != i && k != j)
-	{
-	  pk = PV(k);
-	  d +=
-	    (a[k][i] - a[k][j]) * (b[pk][pj] - b[pk][pi]) +
-	    (a[i][k] - a[j][k]) * (b[pj][pk] - b[pi][pk]);
-	}
-    }
-
-  return d;
-}
-
-#endif
-
-#if SPEED == 2
-/*
- *  As above, compute the cost difference if elements i and j are permuted
- *  but the value of delta[i][j] is supposed to be known before
- *  the transposition of elements r and s.
- */
-int
-Compute_Delta_Part(int i, int j, int r, int s)
-{
-  int pi = PV(i);
-  int pj = PV(j);
-  int pr = PV(r);
-  int ps = PV(s);
-
-  return delta[i][j] + 
-    (a[r][i] - a[r][j] + a[s][j] - a[s][i]) *
-    (b[ps][pi] - b[ps][pj] + b[pr][pj] - b[pr][pi]) +
-    (a[i][r] - a[j][r] + a[j][s] - a[i][s]) *
-    (b[pi][ps] - b[pj][ps] + b[pj][pr] - b[pi][pr]);
-}
-#endif
-
 
 
 void  
 Swap(int *t, int r, int s)
 {
   int temp;
-
-#if SPEED == 1
-  cost += Compute_Delta(r, s);
-#elif SPEED == 2
-  if (r >= s)
-    {
-      int tmp = r;
-      r = s;
-      s = tmp;
-    }
-  cost += delta[r][s];
-#endif
-
   temp = t[r];
   t[r] = t[s];
   t[s] = temp;
 
-#if SPEED == 2  
-  int i, j;
-  for (i = 0; i < n; i++)
-    for (j = i + 1; j < n; j++)
-      if (i != r && i != s && j != r && j != s)
-	delta[i][j] = Compute_Delta_Part(i, j, r, s);
-      else
-	delta[i][j] = Compute_Delta(i, j);
-#endif
-}
-
-
-int
-Cost_Of_Permutation()
-{
-  int i, j;
-  int r = 0;
-
-  for(i = 0; i < n; i++)
-    for(j = 0; j < n; j++)
-      r += a[i][j] * b[PV(i])[PV(j]);
-  
-#if SPEED == 2
-  for(i = 0; i < n; i++)
-    for(j = i + 1; j < n; j++)
-      delta[i][j] = Compute_Delta(i, j);
-#endif
-
-
-  return r;
+  /* customize swap to also maintain in parallel the actual values */
+  QAP_Do_Swap(glob_qi, r, s);  
 }
 
 
 
 
+/* General permutation function. t[] is must be initialized with 0, 1, ..., n-1 */
 int 
 Next_Permutation(int *t, int n) 
 {
@@ -186,69 +81,38 @@ Next_Permutation(int *t, int n)
   Swap(t, j, k);
 
   for(r = n - 1, s = j + 1; r > s; r--, s++) 
-    Swap(t, r, s);
-  
+    Swap(t, r, s);  
 
   return 1;
 } 
 
 
 
-int
-Solve(QAPInfo *qi, int target_cost, QAPVector best_sol)
+void
+Solve(QAPInfo qi)
 {
-  int verbose = Get_Verbose_Level();
   int i;
 
-  n = qi->size;
-  a = qi->a;
-  b = qi->b;
+  glob_qi = qi;
+ 
+  int n = qi->size;
 
-  sol = QAP_Alloc_Vector(n);
-
-#if SPEED == 2
-  delta = QAP_Alloc_Matrix(n);
-#endif
-
+  QAPVector t = QAP_Alloc_Vector(n);
   for(i = 0; i < n; i++)
-    sol[i] = i;
-
-#ifdef RANDOM_PERMS
-  val = QAP_Alloc_Vector(n);
-  QAP_Copy_Vector(val, best_sol, n);
-#endif
-
-#if SPEED >= 1
-  cost = Cost_Of_Permutation();
-#endif
-
-  int best_cost = 1 << 30;
-  int iter_no = 0;
-
-  do
+    t[i] = i;			/* the indexes to permut (using general procedure) */
+  
+  if (!from_random)		/* reset the sol vector to 0..n-1 */
     {
-      iter_no++;
-#if SPEED == 0
-      cost = Cost_Of_Permutation();
-#endif
-      if (cost < best_cost)
-	{
-	  for(i = 0; i < n; i++)
-	    best_sol[i] = PV(i);
+      for(i = 0; i < n; i++)
+	qi->sol[i] = i;
+      QAP_Set_Solution(qi);
+    }
 
-	  best_cost = cost;
-	  if (verbose > 0)
-	    {
-	      printf("iter:%9d  cost: %s\n", iter_no, Format_Cost_And_Gap(cost, target_cost));
-	      if (verbose > 1)
-		QAP_Display_Vector(best_sol, n);
-	    }
-	}
-      if (cost <= target_cost || Is_Interrupted())
+
+  while(Report_Solution(qi))
+    {
+      qi->iter_no++;
+      if (!Next_Permutation(t, n))
 	break;
     }
-  while(Next_Permutation(sol, n));
-
-  
-  return best_cost;
 }

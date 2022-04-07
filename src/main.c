@@ -47,11 +47,9 @@ static int ctrl_c = 0;
 
 // execution vars
 
-static QAPInfo qap_info;
+static QAPInfo qi;
 
-/* 1 run of the method (= 1 restart) */
-static QAPVector sol;		   /* current solution */
-static QAPMatrix delta;		   /* store move costs */
+				/* 1 run of the method (= 1 restart) */
 static QAPVector restart_best_sol; /* inside 1 bench_exec/1 restart (record best of sol[]) */
 static int restart_best_cost;
 static QAPVector exec_best_sol;	/* inside 1 exec, best of all restarts */
@@ -83,9 +81,7 @@ static double max_time = 0.0;
 #define Get_Elapsed_Time() (((double) User_Time() - time_at_start) / 1000)
 
 
-static void QAP_Parse_Cmd_Line(int argc, char *argv[]);
-
-static void Read_Values(QAPVector sol, int size);
+static void Parse_Cmd_Line(int argc, char *argv[]);
 
 static void Ctrl_C_Handler(int sig);
 
@@ -110,17 +106,21 @@ main(int argc, char *argv[])
 
   Init_Main();
 
-  QAP_Parse_Cmd_Line(argc, argv);
+  Parse_Cmd_Line(argc, argv);
+
+  if (max_restart_iters > max_exec_iters)
+    max_restart_iters = max_exec_iters;
 
   setlinebuf(stdout);
   //setvbuf(stdout, NULL, _IOLBF, 0);  // Windows
 
-  int size = QAP_Load_Problem(file_name, &qap_info, 0);
+  qi = QAP_Load_Problem(file_name, 0);
+  int size = qi->size;
 
   if (target_cost <= 0)
-    target_cost = (qap_info.opt > 0) ? qap_info.opt : (qap_info.bks > 0) ? qap_info.bks : qap_info.bound;
-  if (target_cost < qap_info.bound)
-    target_cost = qap_info.bound;
+    target_cost = (qi->opt > 0) ? qi->opt : (qi->bks > 0) ? qi->bks : qi->bound;
+  if (target_cost < qi->bound)
+    target_cost = qi->bound;
 
   printf("command-line:");
   int i;
@@ -139,24 +139,22 @@ main(int argc, char *argv[])
   printf("\n");
   printf("Used seed: %d\n", seed);
   printf("QAP infos: ");
-  printf(" size:%d ", qap_info.size);
-  if (qap_info.opt > 0)
-    printf(" opt: %d ", qap_info.opt);
-  else if (qap_info.bound > 0)
-    printf(" bound: %d ", qap_info.bound);
-  if (qap_info.bks > 0)
-    printf(" bks: %d", qap_info.bks);
+  printf(" size:%d ", qi->size);
+  if (qi->opt > 0)
+    printf(" opt: %d ", qi->opt);
+  else if (qi->bound > 0)
+    printf(" bound: %d ", qi->bound);
+  if (qi->bks > 0)
+    printf(" bks: %d", qi->bks);
   printf("\n");
   printf("Stop when cost <= %d\n", target_cost);
   printf("max iterations: %d\n", max_exec_iters);
   printf("restart iters : %d\n", max_restart_iters);
 
-  Display_Parameters(&qap_info, target_cost);
+  Display_Parameters(qi, target_cost);
   
-  sol = QAP_Alloc_Vector(size);
   exec_best_sol = QAP_Alloc_Vector(size);
   restart_best_sol = QAP_Alloc_Vector(size);
-  delta = QAP_Alloc_Matrix(size);
   
   exec_no = 0;
 
@@ -175,9 +173,12 @@ main(int argc, char *argv[])
 #if 1
       int reuse = 0;
       if (read_initial)
-	Read_Values(sol, size);
+	{
+	  if (!Read_Values(qi->sol, size))
+	    return 1;
+	}
       else if (exec_no == 0 || Random_Double() >= prob_reuse)
-	Random_Permut(sol, size, NULL, 0);
+	Random_Permut(qi->sol, size, NULL, 0);
       else
 	reuse = 1;
 
@@ -195,10 +196,12 @@ main(int argc, char *argv[])
 	    {
 	      if (verbose > 0)
 		printf("\nRestart #%d\n", restart_no);
-	      Random_Permut(sol, size, NULL, 0);
+	      Random_Permut(qi->sol, size, NULL, 0);
 	    }
 	  restart_best_cost = BIG;
-	  Solve(&qap_info, sol);
+	  qi->iter_no = 0;
+	  QAP_Set_Solution(qi);
+	  Solve(qi);
 	  if (restart_best_cost < exec_best_cost)
 	    {
 	      exec_best_cost = restart_best_cost;
@@ -249,197 +252,50 @@ main(int argc, char *argv[])
 
 
 
-/*
- *  Computes the cost of a solution
- */
 int
-Cost_Of_Solution(QAPVector sol)
+Report_Solution(QAPInfo qi)
 {
-  QAPMatrix mat_A = qap_info.a;
-  QAPMatrix mat_B = qap_info.b;
-  int size = qap_info.size;
-  int i, j;
-  int r = 0;
-
-  for (i = 0; i < size; i++)
-    for (j = 0; j < size; j++)
-      r += mat_A[i][j] * mat_B[sol[i]][sol[j]];
-
-
-  Compute_All_Delta(sol);
-
-  return r;
-}
-
-
-/*
- *  The following functions are strongly inspired from of E. Taillard's
- *  Robust Taboo Search code.
- *  http://mistic.heig-vd.ch/taillard/codes.dir/tabou_qap2.c
- */
-
-
-/*
- *  Computes the entire delta table
- */
-
-void
-Compute_All_Delta(QAPVector sol)
-{
-  int size = qap_info.size;
-  int i, j;
-
-  for (i = 0; i < size; i++)
-    {
-      delta[i][i] = 0;		/* actually not needed since never used... */
-      for (j = i + 1; j < size; j++)
-	delta[i][j] = Compute_Delta(sol, i, j);
-    }
-}
-
-/*
- *  Computes the cost difference if elements i and j are permuted
- */
-
-int
-Compute_Delta(QAPVector sol, int i, int j)
-{
-  QAPMatrix mat_A = qap_info.a;
-  QAPMatrix mat_B = qap_info.b;
-  int size = qap_info.size;
-  int pi = sol[i];
-  int pj = sol[j];
-  int k, pk;
-  int d = (mat_A[i][i] - mat_A[j][j]) * (mat_B[pj][pj] - mat_B[pi][pi]) +
-          (mat_A[i][j] - mat_A[j][i]) * (mat_B[pj][pi] - mat_B[pi][pj]);
-
-  for (k = 0; k < size; k++)
-    {
-      if (k != i && k != j)
-	{
-	  pk = sol[k];
-	  d += (mat_A[k][i] - mat_A[k][j]) * (mat_B[pk][pj] - mat_B[pk][pi]) +
-	       (mat_A[i][k] - mat_A[j][k]) * (mat_B[pj][pk] - mat_B[pi][pk]);
-	}
-    }
-
-  return d;
-}
-
-
-/*
- *  As Compute_Delta: computes the cost difference if elements i and j are permuted
- *  but the value of delta[i][j] is supposed to be known before
- *  the transposition of elements r and s.
- */
-int
-Compute_Delta_Part(QAPVector sol, int i, int j, int r, int s)
-{
-  QAPMatrix mat_A = qap_info.a;
-  QAPMatrix mat_B = qap_info.b;
-  int pi = sol[i];
-  int pj = sol[j];
-  int pr = sol[r];
-  int ps = sol[s];
-
-  return delta[i][j] +
-    (mat_A[r][i] - mat_A[r][j] + mat_A[s][j] - mat_A[s][i]) *
-    (mat_B[ps][pi] - mat_B[ps][pj] + mat_B[pr][pj] - mat_B[pr][pi]) +
-    (mat_A[i][r] - mat_A[j][r] + mat_A[j][s] - mat_A[i][s]) *
-    (mat_B[pi][ps] - mat_B[pj][ps] + mat_B[pj][pr] - mat_B[pi][pr]);
-}
-
-
-
-
-int Get_Delta(int i, int j)
-{
-  return (i <= j) ? delta[i][j] : delta[j][i];
-}
-
-
-
-/*
- *  Return the cost if i1 and i1 are swapped
- */
-int
-Cost_If_Swap(int cost, int i, int j)
-{
-  return cost + Get_Delta(i, j);
-}
-
-
-
-int
-Do_Swap(int current_cost, QAPVector sol, int i, int j)
-{
-  current_cost = Cost_If_Swap(current_cost, i, j);
-
-  int x = sol[i];		/* swap i and j */
-  sol[i] = sol[j];
-  sol[j] = x;
-
-  Executed_Swap(sol, i, j);	/* register the swap to update delta */
-
-  return current_cost;
-}
-
-
-/* 
- *  Records a swap (to be called once a swap has been done) 
- */
-void
-Executed_Swap(QAPVector sol, int i1, int i2)
-{
-  int size = qap_info.size;
-  int i, j;
-
-  for (i = 0; i < size; i++)
-    for (j = i + 1; j < size; j++)
-      if (i != i1 && i != i2 && j != i1 && j != i2)
-	delta[i][j] = Compute_Delta_Part(sol, i, j, i1, i2);
-      else
-	delta[i][j] = Compute_Delta(sol, i, j);
-}
-
-
-int
-Report_Solution(int iter_no, int cost, QAPVector sol)
-{
-  int size = qap_info.size;
+  int size = qi->size;
+  int cost = qi->cost;
+  int iter_no = qi->iter_no;
   exec_iters++;
 
   if (cost < restart_best_cost)
     {
       restart_best_cost = cost;
-      QAP_Copy_Vector(restart_best_sol, sol, size);
+      QAP_Copy_Vector(restart_best_sol, qi->sol, size);
       if (verbose > 0)
 	{
-	  printf("iter:%9d  cost: %s\n", iter_no, Format_Cost_And_Gap(cost, target_cost));
+	  printf("iter:%9d  cost: %s%s\n", iter_no, Format_Cost_And_Gap(cost, target_cost), (cost < exec_best_cost) ? " ***": "");
 	  if (verbose > 1)
 	    QAP_Display_Vector(restart_best_sol, size);
 	}
     }
-#if 0				/* to check if incremental delta[][] works */
-  if (cost != Cost_Of_Solution(sol))
-    printf("ERROR on cost: %d != %d at iter: %d\n", cost, Cost_Of_Solution(sol), iter_no);
+#if 0				/* to check if incremental delta works */
+  if (cost != QAP_Cost_Of_Solution(qi))
+    printf("ERROR on cost: %d != %d at iter: %d\n", cost, QAP_Cost_Of_Solution(qi), iter_no);
 #endif
   return !Is_Interrupted() && cost > target_cost && exec_iters <= max_exec_iters && iter_no <= max_restart_iters;
 }
 
 
+int
+Get_Max_Iterations(void)
+{
+  return max_restart_iters;
+}
 
 
 /*
  *  Read an initial solution
  */
-void
+int
 Read_Values(QAPVector sol, int size)
 {
   int i;
   int based_1 = 1;
 
-  printf("enter the initial configuration:\n");
+  printf("enter the initial values:\n");
   for (i = 0; i < size; i++)
     {
       if (scanf("%d", &sol[i])) { /* deactivate gcc warning for scanf */ }
@@ -456,13 +312,17 @@ Read_Values(QAPVector sol, int size)
       Random_Permut_Repair(sol, size, NULL, based_1);
       printf("possible repair:\n");
       QAP_Display_Vector(sol, size);
-      exit(1);
+      return 0;
     }
   if (based_1)
     for (i = 0; i < size; i++)
       sol[i]--;
-
+  return 1;
 }
+
+
+
+
 
 static void
 Ctrl_C_Handler(int sig)
@@ -514,7 +374,7 @@ Register_Option(char *name, OptType type, char * help_arg, char *help_text, void
  *
  */
 void
-QAP_Parse_Cmd_Line(int argc, char *argv[])
+Parse_Cmd_Line(int argc, char *argv[])
 {
   int i, k;
 

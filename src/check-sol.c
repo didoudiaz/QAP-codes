@@ -8,7 +8,7 @@
 int p[1000], q[1000];
 int n;
 
-QAPInfo qap_info;
+QAPInfo qi;
 
 
 int
@@ -18,14 +18,14 @@ One_Way(int exchange)
 
   if (!exchange)
     {
-      a = qap_info.a;
-      b = qap_info.b;
+      a = qi->a;
+      b = qi->b;
       printf("---------- Original Matrix ----------\n");
     }
   else
     {
-      a = qap_info.b;
-      b = qap_info.a;
+      a = qi->b;
+      b = qi->a;
       printf("---------- Exchanged Matrix ----------\n");
     }
 
@@ -88,8 +88,8 @@ main(int argc, char *argv[])
       file_name = argv[1];
     }
 
-
-  n = QAP_Load_Problem(file_name, &qap_info, 0);
+  qi = QAP_Load_Problem(file_name, 0);
+  n = qi->size;
   
   int based_1 = 1;
   printf("enter the solution (0-based or 1-based is OK)\n");

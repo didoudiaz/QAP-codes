@@ -14,8 +14,9 @@
 typedef int *QAPVector;
 typedef int **QAPMatrix;
 
-
-typedef struct {
+typedef struct qap_info
+{
+ 				/* --- Problem instance data --- */
   char *file_name;		/* file name */
   int size;			/* size of the problem (always known) */
   int opt;			/* optimal cost (0 if unknown) */
@@ -24,7 +25,14 @@ typedef struct {
 
   QAPMatrix a;			/* flow matrix */
   QAPMatrix b;			/* distance matrix */
-} QAPInfo;
+  
+  				/* --- Solving vars --- */
+  QAPVector sol;		/* current solution */
+  int cost;			/* current cost */
+  int iter_no;			/* current #iteration */
+  QAPMatrix delta;		/* incremental move costs matrix (strictly upper triangular matrix)  */
+} *QAPInfo;
+
 
 
 
@@ -39,9 +47,7 @@ QAPMatrix QAP_Alloc_Matrix(int size);
 
 void QAP_Free_Matrix(QAPMatrix mat, int size);
 
-void QAP_Read_Matrix(FILE *f, int size, QAPMatrix *pm);
-
-int QAP_Load_Problem(char *file_name, QAPInfo *qi, int header_only);
+QAPMatrix QAP_Read_Matrix(FILE *f, int size);
 
 void QAP_Display_Vector(QAPVector sol, int size);
 
@@ -50,6 +56,29 @@ void QAP_Display_Matrix(QAPMatrix mat, int size);
 void QAP_Create_Dual_Vector(QAPVector dst, int size, QAPVector src);
 
 void QAP_Switch_To_Dual_Vector(QAPVector sol, int size);
+
+
+QAPInfo QAP_Load_Problem(char *file_name, int header_only);
+
+void QAP_Set_Solution(QAPInfo qi);
+
+
+int QAP_Cost_Of_Solution(QAPInfo qi);
+
+void QAP_Compute_Delta(QAPInfo qi, int i, int j);
+
+void QAP_Compute_Delta_Part(QAPInfo qi, int i, int j, int r, int s);
+
+void QAP_Compute_All_Delta(QAPInfo qi);
+
+int QAP_Get_Delta(QAPInfo qi, int i, int j);
+
+int QAP_Cost_If_Swap(QAPInfo qi, int i, int j);
+
+int QAP_Do_Swap(QAPInfo qi, int i, int j);
+
+void QAP_Executed_Swap(QAPInfo qi, int i, int j);
+
 
 
 #endif	/* !_QAP_UTILS_H */

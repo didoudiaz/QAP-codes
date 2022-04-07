@@ -6,3 +6,6 @@ mk-grey
 qap-new-format
 rots-qap
 sa-qap
+foo
+*.qap
+*.qat

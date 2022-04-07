@@ -72,7 +72,7 @@ Init_Main(void)
  *  Display parameters
  */
 void
-Display_Parameters(QAPInfo *qi, int target_cost)
+Display_Parameters(QAPInfo qi, int target_cost)
 {
   int n = qi->size;		/* problem size */
   if (tabu_duration_factor < 0)
@@ -88,13 +88,14 @@ Display_Parameters(QAPInfo *qi, int target_cost)
 
 
 
+
 void
-Solve(QAPInfo *qi, QAPVector p)
+Solve(QAPInfo qi)
 {
   int n = qi->size;		/* problem size */
+  QAPVector p = qi->sol;
   int best_cost;		/* cost of best solution */
   QAPMatrix tabu_list;		/* tabu status */
-  int current_iteration = 0;	/* current iteration */
   int current_cost;		/* current sol. value */
   int i, j;			/* indices */
   int i_retained, j_retained;	/* indices retained move cost */
@@ -108,7 +109,7 @@ Solve(QAPInfo *qi, QAPVector p)
   tabu_list = QAP_Alloc_Matrix(n);
 
   /********** initialization of current solution value ***********/
-  current_cost = Cost_Of_Solution(p);
+  current_cost = qi->cost;
   best_cost = current_cost;
 
   /****************** tabu list initialization *******************/
@@ -117,8 +118,10 @@ Solve(QAPInfo *qi, QAPVector p)
       tabu_list[i][j] = -(n * i + j);
 
   /******************** main tabu search loop ********************/
-  while(Report_Solution(current_iteration++, current_cost, p))
+  qi->iter_no = 0;
+  while(Report_Solution(qi))
     {
+      qi->iter_no++;
       /** find best move (i_retained, j_retained) **/
 
       i_retained = infinite;	/* in case all moves are tabu */
@@ -132,15 +135,15 @@ Solve(QAPInfo *qi, QAPVector p)
       for (i = 0; i < n - 1; i++)
 	for (j = i + 1; j < n; j++)
 	  {
-	    int d = Get_Delta(i, j);
+	    int d = QAP_Get_Delta(qi, i, j);
 	    
 	    autorized =
-	      (tabu_list[i][p[j]] < current_iteration) ||
-	      (tabu_list[j][p[i]] < current_iteration);
+	      (tabu_list[i][p[j]] < qi->iter_no) ||
+	      (tabu_list[j][p[i]] < qi->iter_no);
 
 	    aspired =
-	      (tabu_list[i][p[j]] < current_iteration - aspiration) ||
-	      (tabu_list[j][p[i]] < current_iteration - aspiration) ||
+	      (tabu_list[i][p[j]] < qi->iter_no - aspiration) ||
+	      (tabu_list[j][p[i]] < qi->iter_no - aspiration) ||
 	      (current_cost + d < best_cost);
 
 	    if ((aspired && !already_aspired) ||	/* first move aspired */
@@ -182,7 +185,7 @@ Solve(QAPInfo *qi, QAPVector p)
 #endif
 	  /** transpose elements in pos. i_retained and j_retained **/
 	  /* update solution value and delta */
-	  current_cost = Do_Swap(current_cost, p, i_retained, j_retained);
+	  current_cost = QAP_Do_Swap(qi, i_retained, j_retained);
 
 	  /* best solution improved ? */
 	  if (current_cost < best_cost)
@@ -206,8 +209,8 @@ Solve(QAPInfo *qi, QAPVector p)
 	  //do t2 = (int) (cube(Random_Double()) * tabu_duration); while(t2 <= 2);
 	  t2 = t1;
 #endif
-	  tabu_list[i_retained][p[j_retained]] = current_iteration + t1;
-	  tabu_list[j_retained][p[i_retained]] = current_iteration + t2;
+	  tabu_list[i_retained][p[j_retained]] = qi->iter_no + t1;
+	  tabu_list[j_retained][p[i_retained]] = qi->iter_no + t2;
 	}
 
     }
