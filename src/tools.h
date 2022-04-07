@@ -56,7 +56,7 @@ void *Realloc_Check(void *ptr, size_t size, char *src_file, int src_line);
 
 #define Realloc(ptr, size) Realloc_Check(ptr, size, __FILE__, __LINE__)
 
-#define Free(ptr)          free(p@tr)
+#define Free(ptr)          free(ptr)
 
 
 #define Alloc_Vector(vec, nb) vec = Malloc(nb * sizeof(*vec))

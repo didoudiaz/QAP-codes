@@ -183,7 +183,7 @@ void generate_solution_trace(QAPInfo qi, QAPMatrix trace,
 
 /********************************************************************/
 
-#define no_iteration qi->iter_no
+
 void
 Solve(QAPInfo qi)
 {
@@ -195,9 +195,6 @@ Solve(QAPInfo qi)
   int increment;                       // parameter for managing the traces
   QAPVector move;		       // set of moves, numbered from 0 to index
   QAPVector nexti, nextj, sum_trace;
-
-  
-  /*int*/ no_iteration = 0;                // iteration counters
 
   best_p = QAP_Alloc_Vector(n);	/*  must be different from p, OK since initialized with 0, */
   best_cost = INT_MAX;
@@ -213,9 +210,10 @@ Solve(QAPInfo qi)
   sum_trace = QAP_Alloc_Vector(n);
 
   // FANT iterations
+  qi->iter_no = 0;
   while(Report_Solution(qi))                                             
     {
-      no_iteration++;
+      qi->iter_no++;
 
       // Build a new solution
       generate_solution_trace(qi, trace, nexti, nextj, sum_trace);
@@ -237,7 +235,6 @@ Solve(QAPInfo qi)
     }
 
   // ending the programme
-  //  QAP_Free_Vector(p);
   QAP_Free_Vector(best_p);
   QAP_Free_Matrix(trace, n);
   QAP_Free_Vector(move);

@@ -266,7 +266,7 @@ Report_Solution(QAPInfo qi)
       QAP_Copy_Vector(restart_best_sol, qi->sol, size);
       if (verbose > 0)
 	{
-	  printf("iter:%9d  cost: %s%s\n", iter_no, Format_Cost_And_Gap(cost, target_cost), (cost < exec_best_cost) ? " ***": "");
+	  printf("iter:%9d  cost: %s%s\n", iter_no, Format_Cost_And_Gap(cost, target_cost), (cost < exec_best_cost) ? " *** IMPROVED ***": "");
 	  if (verbose > 1)
 	    QAP_Display_Vector(restart_best_sol, size);
 	}

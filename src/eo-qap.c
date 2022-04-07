@@ -231,8 +231,7 @@ Solve(QAPInfo qi)
 {
   size = qi->size;
   
-  if (fit_tbl == NULL)		/* solver not yet initialized */
-    fit_tbl = Malloc(size * sizeof(fit_tbl[0]));
+  fit_tbl = Malloc(size * sizeof(fit_tbl[0]));
   
   qi->iter_no = 0;
   while (Report_Solution(qi)) 
@@ -282,4 +281,6 @@ Solve(QAPInfo qi)
 
       QAP_Do_Swap(qi, i, j); /* register the swap */
     }
+
+  Free(fit_tbl);
 }
