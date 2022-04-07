@@ -167,7 +167,7 @@ main(int argc, char *argv[])
   max_time = 0.0;
 
   ctrl_c = 0;
-  
+
   for (exec_no = 0; exec_no < n_execs && !Is_Interrupted(); exec_no++)
     {
 #if 1

@@ -1,4 +1,3 @@
-finir retstart
 ajout -r +XXX pour écart depuis derniere amélioration
 ajout -r XXXs pour ecart en seconde
 
@@ -6,7 +5,6 @@ ajout #BKS obtenues
 ajout stats compteur iters
 
 faire une fonction Master_Solver()
-mettre tout ce qui est Delta... dans qap-utils
 
 modif verbose afficher restart (verb 2)
 
