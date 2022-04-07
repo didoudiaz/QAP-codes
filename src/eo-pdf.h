@@ -16,7 +16,6 @@ typedef struct
 {
   /* input */
 
-  int verbose;			/* verbosity level for the PDF operations (0=none, 1, 2,...) */
   int size;			/* #values needed (from 1..size), i.e. size of the problem */
   char *pdf_name;		/* name of the PDF (or "random" or NULL) */
   char *gplot_prefix;		/* file name to create gplot files (or NULL) */

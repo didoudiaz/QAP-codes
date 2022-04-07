@@ -1,7 +1,7 @@
 /*
  *  Quadratic Assignment Problem
  *
- *  Copyright (C) 2010-2022 Daniel Diaz
+ *  Copyright (C) 2015-2022 Daniel Diaz
  *
  *  main.c: general main
  */
@@ -40,7 +40,7 @@ static int n_execs = 1;
 static int read_initial = 0;
 static int verbose = 0;
 static int max_exec_iters = 10000;
-static int max_restart_iters = BIG;
+static int max_restart_iters = INT_MAX;
 static int restart_no;
 
 static int ctrl_c = 0;
@@ -65,12 +65,12 @@ static int max_iters = 0;
 #endif
 
 static double sum_cost = 0.0;
-static int min_cost = BIG;
+static int min_cost = INT_MAX;
 static int max_cost = 0;
 
 static double time_at_start;
 static double sum_time = 0.0;
-static double min_time = BIG;
+static double min_time = INT_MAX;
 static double max_time = 0.0;
 
 
@@ -95,14 +95,14 @@ static void Ctrl_C_Handler(int sig);
 int
 main(int argc, char *argv[])
 {
-  Register_Option("-s", OPT_INT, "SEED",           "specify random seed", &seed);
-  Register_Option("-i", OPT_NON, "",               "read initial configuration", &read_initial);
-  Register_Option("-b", OPT_INT, "N_EXECS",        "execute N_EXECS times",  &n_execs);
-  Register_Option("-P", OPT_DBL, "PROB_REUSE",     "probability to reuse curr configuration for next execution", &prob_reuse);
-  Register_Option("-T", OPT_INT, "TARGET",         "set target (default: stop when the OPT or BKS is reached)", &target_cost);
-  Register_Option("-v", OPT_INT, "LEVEL",          "set verbosity level",  &verbose);
-  Register_Option("-m", OPT_INT,  "MAX_ITERS",     "set maximum #iterations", &max_exec_iters); 
-  Register_Option("-r", OPT_INT,  "ITERS_BEFORE_RESTART", "set #iterations before restart", &max_restart_iters); 
+  Register_Option("-s", OPT_INT, "SEED",                 "specify random seed", &seed);
+  Register_Option("-i", OPT_NON, "",                     "read initial configuration", &read_initial);
+  Register_Option("-b", OPT_INT, "N_EXECS",              "execute N_EXECS times",  &n_execs);
+  Register_Option("-P", OPT_DBL, "PROB_REUSE",           "probability to reuse curr configuration for next execution", &prob_reuse);
+  Register_Option("-T", OPT_INT, "TARGET",               "set target (default: stop when the OPT or BKS is reached)", &target_cost);
+  Register_Option("-v", OPT_INT, "LEVEL",                "set verbosity level",  &verbose);
+  Register_Option("-m", OPT_INT, "MAX_ITERS",            "set maximum #iterations", &max_exec_iters); 
+  Register_Option("-r", OPT_INT, "ITERS_BEFORE_RESTART", "set #iterations before restart", &max_restart_iters); 
 
   Init_Main();
 
@@ -159,11 +159,11 @@ main(int argc, char *argv[])
   exec_no = 0;
 
   sum_cost = 0.0;
-  min_cost = BIG;
+  min_cost = INT_MAX;
   max_cost = 0;
 
   sum_time = 0.0;
-  min_time = BIG;
+  min_time = INT_MAX;
   max_time = 0.0;
 
   ctrl_c = 0;
@@ -185,7 +185,7 @@ main(int argc, char *argv[])
       if (n_execs > 1)
 	printf("exec #%d %s\n", exec_no + 1, (reuse) ? "(reuse previous configuration)" : "");
 #endif
-      exec_best_cost = BIG;
+      exec_best_cost = INT_MAX;
       exec_iters = 0;
 
       Init_Elapsed_Time();
@@ -198,7 +198,7 @@ main(int argc, char *argv[])
 		printf("\nRestart #%d\n", restart_no);
 	      Random_Permut(qi->sol, size, NULL, 0);
 	    }
-	  restart_best_cost = BIG;
+	  restart_best_cost = INT_MAX;
 	  qi->iter_no = 0;
 	  QAP_Set_Solution(qi);
 	  Solve(qi);
@@ -232,7 +232,7 @@ main(int argc, char *argv[])
 
     }
 
-  n_execs = exec_no;		/* in case of CTRL_C fix the number of execs */
+  n_execs = exec_no;		/* in case of CTRL_C fix the number of execs (for average) */
   double avg_cost = sum_cost / n_execs;
   double avg_time = sum_time / n_execs;
   if (n_execs > 1)

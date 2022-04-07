@@ -14,6 +14,8 @@
 
 #include "tools.h"		/* for random number generator */
 #include "eo-pdf.h"
+#include "main.h"
+
 
 /*
  *  Probability Distribution Functions (PDF)
@@ -56,9 +58,6 @@ static void PDF_Compute_Tau_From_Force_Non_Monot(PDF *p);
 static void PDF_Compute_Force(PDF *p);
 
 static void PDF_Gener_GNUplot(PDF *p);
-
-
-#define VERB(level, ...) do { if (p->verbose >= level) { printf(__VA_ARGS__); printf("\n"); } } while(0)
 
 
 /* 

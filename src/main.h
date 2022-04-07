@@ -1,7 +1,7 @@
 /*
  *  Quadratic Assignment Problem
  *
- *  Copyright (C) 2010-2022 Daniel Diaz
+ *  Copyright (C) 2015-2022 Daniel Diaz
  *
  *  main.h: general main - header file
  */
@@ -13,8 +13,6 @@
 
 #include "qap-utils.h"
 
-#define BIG  INT_MAX
-
 typedef enum
 {
   OPT_NON, 
@@ -23,18 +21,20 @@ typedef enum
   OPT_STR
 }OptType;
 
+
 #ifdef _MAIN_C
 #define DEF_IN_MAIN(decl, init) decl = init;
 #else
-#define DEF_IN_MAIN(decl, init) exter, decl;
+#define DEF_IN_MAIN(decl, init) extern decl;
 #endif
-
 
 
 
 void Register_Option(char *name, OptType type, char *help_arg, char *help_text, void *p_value);
 
 int Get_Verbose_Level(void);
+
+#define VERB(level, ...) do { if (Get_Verbose_Level() >= level) { printf(__VA_ARGS__); printf("\n"); } } while(0)
 
 int Report_Solution(QAPInfo qi);
 

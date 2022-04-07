@@ -95,7 +95,6 @@ Display_Parameters(QAPInfo qi, int target_cost)
       pdf.force = NAN;
     }
 
-  pdf.verbose = Get_Verbose_Level();
   pdf.size = qi->size;
   pdf.gplot_prefix = (g_fname1 != NULL) ? g_fname1 : g_fname;
   pdf.show_gplot = (g_fname1 != NULL);
