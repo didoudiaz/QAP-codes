@@ -44,7 +44,7 @@ char *Format_Cost_And_Gap(int cost, int target_cost);
 
 int Read_Values(QAPVector sol, int size);
 
-int Get_Max_Iterations(void);
+int Get_Run_Max_Iterations(void);
 
 		/* these functions must be provided by the user code */
 

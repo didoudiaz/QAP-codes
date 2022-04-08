@@ -120,7 +120,7 @@ Solve(QAPInfo qi)
     }
   t0 = dmin + (dmax - dmin)/10.0;
   tf = dmin;
-  beta = (t0 - tf)/(Get_Max_Iterations()*t0*tf);
+  beta = (t0 - tf)/(Get_Run_Max_Iterations()*t0*tf);
 
   nb_fail = 0;
   tfound = t0;

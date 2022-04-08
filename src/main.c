@@ -41,7 +41,7 @@ static int read_initial = 0;
 static int verbose = 0;
 static int max_exec_iters = 10000;
 static int max_restart_iters = INT_MAX;
-static int restart_no;
+static int run_no;
 
 static int ctrl_c = 0;
 
@@ -49,14 +49,16 @@ static int ctrl_c = 0;
 
 static QAPInfo qi;
 
-				/* 1 run of the method (= 1 restart) */
-static QAPVector restart_best_sol; /* inside 1 bench_exec/1 restart (record best of sol[]) */
-static int restart_best_cost;
-static QAPVector exec_best_sol;	/* inside 1 exec, best of all restarts */
+/* can do n execs, each exec is composed of m runs of the method (1 run = first + restarts)
+ */
 
-static int exec_no;		/* 1 bench exec can include several restarts */
+static QAPVector run_best_sol; /* inside 1 bench exec and 1 run:  (record best of sol[]) */
+static int run_best_cost;
+static QAPVector exec_best_sol;	/* inside 1 exec, best of all runs */
+
+static int exec_no;		/* 1 bench exec can include several runs */
 static int exec_iters = 0;	/* total #iters in one bench exec */
-static int exec_best_cost;	/* best cost in one bench exec (accross all restarts) */
+static int exec_best_cost;	/* best cost in one bench exec (accross all runs) */
 
 #if 0
 static int sum_iters = 0;
@@ -97,13 +99,14 @@ main(int argc, char *argv[])
 {
   Register_Option("-s", OPT_INT, "SEED",                 "specify random seed", &seed);
   Register_Option("-i", OPT_NON, "",                     "read initial configuration", &read_initial);
-  Register_Option("-b", OPT_INT, "N_EXECS",              "execute N_EXECS times",  &n_execs);
+  Register_Option("-b", OPT_INT, "N_EXECS",              "execute the bench N_EXECS times",  &n_execs);
   Register_Option("-P", OPT_DBL, "PROB_REUSE",           "probability to reuse curr configuration for next execution", &prob_reuse);
   Register_Option("-T", OPT_INT, "TARGET",               "set target (default: stop when the OPT or BKS is reached)", &target_cost);
   Register_Option("-v", OPT_INT, "LEVEL",                "set verbosity level",  &verbose);
   Register_Option("-m", OPT_INT, "MAX_ITERS",            "set maximum #iterations", &max_exec_iters); 
   Register_Option("-r", OPT_INT, "ITERS_BEFORE_RESTART", "set #iterations before restart", &max_restart_iters); 
 
+  
   Init_Main();
 
   Parse_Cmd_Line(argc, argv);
@@ -154,7 +157,7 @@ main(int argc, char *argv[])
   Display_Parameters(qi, target_cost);
   
   exec_best_sol = QAP_Alloc_Vector(size);
-  restart_best_sol = QAP_Alloc_Vector(size);
+  run_best_sol = QAP_Alloc_Vector(size);
   
   exec_no = 0;
 
@@ -190,28 +193,28 @@ main(int argc, char *argv[])
 
       Init_Elapsed_Time();
       signal(SIGINT, Ctrl_C_Handler);
-      for(restart_no = 0; !Is_Interrupted() && exec_best_cost > target_cost && exec_iters < max_exec_iters; restart_no++)
+      for(run_no = 0; !Is_Interrupted() && exec_best_cost > target_cost && exec_iters < max_exec_iters; run_no++)
 	{
-	  if (restart_no > 0)
+	  if (run_no > 0)
 	    {
 	      if (verbose > 0)
-		printf("\nRestart #%d\n", restart_no);
+		printf("\nRestart #%d\n", run_no);
 	      Random_Permut(qi->sol, size, NULL, 0);
 	    }
-	  restart_best_cost = INT_MAX;
+	  run_best_cost = INT_MAX;
 	  qi->iter_no = 0;
 	  QAP_Set_Solution(qi);
 	  Solve(qi);
-	  if (restart_best_cost < exec_best_cost)
+	  if (run_best_cost < exec_best_cost)
 	    {
-	      exec_best_cost = restart_best_cost;
-	      QAP_Copy_Vector(exec_best_sol, restart_best_sol, size);
+	      exec_best_cost = run_best_cost;
+	      QAP_Copy_Vector(exec_best_sol, run_best_sol, size);
 	    }
 	}
       signal(SIGINT, SIG_DFL);
       double run_time = Get_Elapsed_Time();
       
-      printf("\nExec #%d   restarts: %d  cost: %s - solution:\n", exec_no + 1, restart_no, Format_Cost_And_Gap(exec_best_cost, target_cost));
+      printf("\nExec #%d   restarts: %d  cost: %s - solution:\n", exec_no + 1, run_no, Format_Cost_And_Gap(exec_best_cost, target_cost));
       QAP_Display_Vector(exec_best_sol, size);
       printf("Time: %.3f sec\n\n", run_time);
 
@@ -260,15 +263,15 @@ Report_Solution(QAPInfo qi)
   int iter_no = qi->iter_no;
   exec_iters++;
 
-  if (cost < restart_best_cost)
+  if (cost < run_best_cost)
     {
-      restart_best_cost = cost;
-      QAP_Copy_Vector(restart_best_sol, qi->sol, size);
+      run_best_cost = cost;
+      QAP_Copy_Vector(run_best_sol, qi->sol, size);
       if (verbose > 0)
 	{
 	  printf("iter:%9d  cost: %s%s\n", iter_no, Format_Cost_And_Gap(cost, target_cost), (cost < exec_best_cost) ? " *** IMPROVED ***": "");
 	  if (verbose > 1)
-	    QAP_Display_Vector(restart_best_sol, size);
+	    QAP_Display_Vector(run_best_sol, size);
 	}
     }
 #if 0				/* to check if incremental delta works */
@@ -280,7 +283,7 @@ Report_Solution(QAPInfo qi)
 
 
 int
-Get_Max_Iterations(void)
+Get_Run_Max_Iterations(void)
 {
   return max_restart_iters;
 }
